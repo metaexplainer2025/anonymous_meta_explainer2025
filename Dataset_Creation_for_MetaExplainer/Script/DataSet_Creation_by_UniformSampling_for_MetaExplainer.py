@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from jedi.inference.finder import filter_name
 from torch_geometric.nn import GCNConv, global_add_pool
 # from torch_geometric.data import DataLoader
 import argparse
@@ -36,6 +37,7 @@ from torch_geometric.nn import MessagePassing
 import copy
 from importlib import reload
 import pickle
+import random
 from sklearn.preprocessing import label_binarize
 from tqdm.auto import tqdm
 from torch_geometric.data import Data, Batch, Dataset
@@ -91,7 +93,7 @@ GNNs_Stats = \
                 "DIFFPOOL": {"AUC-ROC": 0.971, "AUC-PR": 0.978, "Accuracy": 0.97, "Running Time [sec]": 0.093},
                 "GIN": {"AUC-ROC": 1.0, "AUC-PR": 1.0, "Accuracy": 1.0, "Running Time [sec]": 0.062}
             }
-}
+    }
 
 # Example of accessing data:
 # print(data['IsCyclic']['GIN']['AUC-ROC'])  # Output: 1.0
@@ -1690,8 +1692,18 @@ Explanation_Time_score, Explanation_Time_sorted = sort_explainers(Explanation_Ti
 #     print("     ", gnn_model.keys())
 #     for explainer, score in gnn_model.items():
 #         print(explainer, score)
-possible_values = [1, 2]
-all_cases = list(itertools.product(possible_values, repeat=6))
+
+num_samples = 4000
+weight_levels = [1, 2, 3, 4]
+num_metrics = 6
+weights_distribution = "UniformDistribution_"
+file_names = weights_distribution + str(num_samples) + "_Samples" + "_Weights_" + '_'.join(str(i) for i in weight_levels)
+all_possible_cases = list(itertools.product(weight_levels, repeat=num_metrics))
+random.shuffle(all_possible_cases)
+all_cases = all_possible_cases[:num_samples]  # Ensures uniqueness
+
+# print("all_cases: ", all_cases)
+# all_cases = list(itertools.product(possible_values, repeat=num_metrics))
 stats_dict = {"Fidelity+": Fidelity_plus_score, "Fidelity-": Fidelity_minus_score, "Contrastivity": Contrastivity_score,
               "Sparsity": Sparsity_score, "Stability": Stability_score, "ExplanationTime": Explanation_Time_score}
 Label_Dict = {}
@@ -1712,7 +1724,7 @@ for dataset_name in Datasets_Name:
                                weights[5]*stats_dict["ExplanationTime"][dataset_name][gnn_name][explainer_name])
                 Label_Dict[dataset_name][gnn_name][weights][explainer_name] = Final_Score
 
-print(len(Label_Dict.keys()) * len(Label_Dict["MUTAG"].keys()) * len(Label_Dict["MUTAG"]["DGCNN"].keys()))
+print("num_datasets * num_models * possible worlds= ", len(Label_Dict.keys()) * len(Label_Dict["MUTAG"].keys()) * len(Label_Dict["MUTAG"]["DGCNN"].keys()))
 
 
 directory = ("/data/cs.aau.dk/ey33jw/Explainability_Methods/Dataset_Representation_Learning/Experimental Results/" +
@@ -1720,7 +1732,7 @@ directory = ("/data/cs.aau.dk/ey33jw/Explainability_Methods/Dataset_Representati
 with open(directory, 'rb') as file:
     dataset_representation = pickle.load(file)
 # for key, value in dataset_representation.items():
-    # print(key, value)
+# print(key, value)
 
 structured_dict = {}
 for weights in all_cases:
@@ -1781,7 +1793,7 @@ for dataset_name in structured_dict.keys():
 # print(Data["MUTAG"]["GCN"][(1, 1, 1, 1, 1, 1)].keys())
 # print(Data["MUTAG"]["GCN"][(1, 1, 1, 1, 1, 1)]["GNNExplainer"]["features"])
 # print(Data["MUTAG"]["GCN"][(1, 1, 1, 1, 1, 1)]["label"])
-print(Data["MUTAG"]["GCN"][(1, 1, 1, 1, 1, 1)])
+# print(Data["MUTAG"]["GCN"][(1, 1, 1, 1, 1, 1)])
 X_data = []
 Y_data = []
 Y_index = []
@@ -1793,8 +1805,8 @@ for dataset_name in structured_dict.keys():
             Y_index.append(Explainers.index(Data[dataset_name][gnn_name][weights]["label"]))
 
 Y_data = np.eye(8)[Y_index]
-print(X_data)
-print(Y_data)
+# print(X_data)
+# print(Y_data)
 
 X_data = np.array(X_data)
 
@@ -1814,8 +1826,8 @@ for lbl in Y_data:
     lbl_np = np.array(lbl)
     Y.append(torch.from_numpy(lbl_np))
 directory_x = ("/data/cs.aau.dk/ey33jw/Explainability_Methods/Dataset_Creation_for_MetaExplainer/Experimental Results/" +
-             "X.pt")
+               "X_" + file_names + ".pt")
 directory_y = ("/data/cs.aau.dk/ey33jw/Explainability_Methods/Dataset_Creation_for_MetaExplainer/Experimental Results/" +
-               "Y.pt")
+               "Y_" + file_names + ".pt")
 torch.save(X, directory_x)
 torch.save(Y, directory_y)
